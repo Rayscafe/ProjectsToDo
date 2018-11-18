@@ -9,59 +9,48 @@
 
 import UIKit
 import RealmSwift
+import ChameleonFramework
 
-class CategoryViewController: UITableViewController {
+class CategoryViewController: SwipeTableViewController {
     
     let realm = try! Realm()
-
-    var category: Results<Category>?
-
+    
+    var categories: Results<Category>?
     
     override func viewDidLoad() {
         super.viewDidLoad()
-        loadCategory()
+        
+        loadCategories()
+        
+        tableView.separatorStyle = .none
     }
     
     //MARK: - TableView Datasource Methods
-    
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-        return category?.count ?? 1
+        
+        return categories?.count ?? 1
     }
+    
     
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-        let cell = tableView.dequeueReusableCell(withIdentifier: "CategoryCell", for: indexPath)
-        cell.textLabel?.text = category?[indexPath.row].name ?? "No Categories added yet"
         
+        let cell = super.tableView(tableView, cellForRowAt: indexPath)
+        
+        if let category = categories?[indexPath.row] {
+            
+            cell.textLabel?.text = category.name
+            
+            guard let categoryColour = UIColor(hexString: category.colour) else {fatalError()}
+            cell.backgroundColor = categoryColour
+            cell.textLabel?.textColor = ContrastColorOf(categoryColour, returnFlat: true)
+        }
         return cell
-    }
-    
-    //MARK: - Add New Categories
-
-    @IBAction func addButtonPressed(_ sender: UIBarButtonItem) {
-        var textField = UITextField()
-        
-        let alert = UIAlertController(title: "Add New Category", message: "", preferredStyle: .alert)
-        let action = UIAlertAction(title: "Add Category", style: .default) { (action) in
-            
-            let newCategory = Category()
-            newCategory.name = textField.text!
-            
-            self.save(category: newCategory)
-        }
-        alert.addAction(action)
-        alert.addTextField{ (alertTextField) in
-            alertTextField.placeholder = "Create new category"
-            textField = alertTextField
-        }
-        
-        present(alert, animated: true, completion: nil)
-        
     }
     
     
     //MARK: - TableView Delegate Methods
+    
     override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
-
         performSegue(withIdentifier: "goToItems", sender: self)
     }
     
@@ -69,7 +58,7 @@ class CategoryViewController: UITableViewController {
         let destinationVC = segue.destination as! ToDoViewController
         
         if let indexPath = tableView.indexPathForSelectedRow {
-            destinationVC.selectedCategory = category?[indexPath.row]
+            destinationVC.selectedCategory = categories?[indexPath.row]
         }
     }
     
@@ -77,18 +66,63 @@ class CategoryViewController: UITableViewController {
     
     func save(category: Category) {
         do {
-            try realm.write{
+            try realm.write {
                 realm.add(category)
             }
         } catch {
-            print("Error saving context \(error)")
+            print("Error saving category \(error)")
         }
-        self.tableView.reloadData()
-    }
-    
-    func loadCategory() {
-        category = realm.objects(Category.self)
         tableView.reloadData()
     }
-
+    
+    func loadCategories() {
+        
+        categories  = realm.objects(Category.self)
+        
+        tableView.reloadData()
+    }
+    
+    //MARK: - Delete Data From Swipe
+    
+    override func updateModel(at indexPath: IndexPath) {
+        
+        if let categoryForDeletion = self.categories?[indexPath.row] {
+            do {
+                try self.realm.write {
+                    self.realm.delete(categoryForDeletion)
+                }
+            } catch {
+                print("Error deleting category, \(error)")
+            }
+        }
+    }
+    
+    
+    //MARK: - Add New Categories
+    
+    @IBAction func addButtonPressed(_ sender: UIBarButtonItem) {
+        
+        var textField = UITextField()
+        
+        let alert = UIAlertController(title: "Add New Category", message: "", preferredStyle: .alert)
+        
+        let action = UIAlertAction(title: "Add", style: .default) { (action) in
+            
+            let newCategory = Category()
+            newCategory.name = textField.text!
+            newCategory.colour = UIColor.randomFlat.hexValue()
+            
+            self.save(category: newCategory)
+            
+        }
+        
+        alert.addAction(action)
+        alert.addTextField { (field) in
+            textField = field
+            textField.placeholder = "Add a new category"
+        }
+        
+        present(alert, animated: true, completion: nil)
+    }
+    
 }
